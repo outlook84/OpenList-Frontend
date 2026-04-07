@@ -29,17 +29,13 @@ const App: Component = () => {
   const t = useT()
   globalStyles()
   const isRouting = useIsRouting()
-  const { to, pathname } = useRouter()
+  const { to } = useRouter()
   const onTo = (path: string) => {
     to(path)
   }
   bus.on("to", onTo)
   onCleanup(() => {
     bus.off("to", onTo)
-  })
-
-  createEffect(() => {
-    bus.emit("pathname", pathname())
   })
 
   const [err, setErr] = createSignal<string[]>([])

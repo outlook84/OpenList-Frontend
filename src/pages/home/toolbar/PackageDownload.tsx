@@ -54,6 +54,7 @@ const PackageDownload = (props: { onClose: () => void }) => {
             "direct",
             isShare(),
             true,
+            password(),
           ),
         },
       ]

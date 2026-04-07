@@ -65,6 +65,7 @@ export const useDownload = () => {
                 "direct",
                 isShare(),
                 true,
+                password(),
               ),
               name: obj.name,
             },

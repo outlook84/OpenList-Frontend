@@ -1,4 +1,4 @@
-import { objStore, selectedObjs, State, me } from "~/store"
+import { objStore, password, selectedObjs, State, me } from "~/store"
 import { Obj, ArchiveObj } from "~/types"
 import {
   base_path,
@@ -8,8 +8,8 @@ import {
   pathJoin,
   standardizePath,
 } from "~/utils"
-import { useRouter, useUtil } from "."
-import { cookieStorage } from "@solid-primitives/storage"
+import { useRouter } from "./useRouter"
+import { useUtil } from "./useUtil"
 
 type URLType = "preview" | "direct" | "proxy"
 
@@ -20,6 +20,7 @@ export const getLinkByDirAndObj = (
   type: URLType = "direct",
   isShare: boolean,
   encodeAll?: boolean,
+  sharePassword = "",
 ) => {
   if (type !== "preview")
     dir = isShare
@@ -46,11 +47,8 @@ export const getLinkByDirAndObj = (
   if (type !== "preview" && !isShare && obj.sign) {
     ans += `?sign=${obj.sign}`
   }
-  if (type !== "preview" && isShare) {
-    const pwd = cookieStorage.getItem("browser-password") || ""
-    if (pwd) {
-      ans += `?pwd=${pwd}`
-    }
+  if (type !== "preview" && isShare && sharePassword) {
+    ans += `?pwd=${sharePassword}`
   }
   if (archive) {
     let inner = `${inner_path}/${obj.name}`
@@ -64,7 +62,7 @@ export const useLink = () => {
   const { pathname, isShare } = useRouter()
   const getLinkByObj = (obj: Obj, type?: URLType, encodeAll?: boolean) => {
     const dir = objStore.state !== State.File ? pathname() : pathDir(pathname())
-    return getLinkByDirAndObj(dir, obj, type, isShare(), encodeAll)
+    return getLinkByDirAndObj(dir, obj, type, isShare(), encodeAll, password())
   }
   const rawLink = (obj: Obj, encodeAll?: boolean) => {
     return getLinkByObj(obj, "direct", encodeAll)

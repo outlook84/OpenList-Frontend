@@ -4,24 +4,39 @@ import {
   createMemo,
   createSignal,
   lazy,
-  Match,
+  onCleanup,
   on,
+  untrack,
   Show,
   Suspense,
   Switch,
+  Match,
 } from "solid-js"
 import { Error, FullLoading, LinkWithBase } from "~/components"
-import { useObjTitle, usePath, useRouter, useT } from "~/hooks"
+import { isActiveSessionRouteAligned } from "./obj-route-guard"
 import {
-  getPagination,
+  getCurrentWorkspacePage,
+  useObjTitle,
+  usePath,
+  useRouter,
+  useT,
+} from "~/hooks"
+import { clearHistoryForSession, recordHistory } from "~/store/history"
+import {
+  getUrlPassword,
+  sanitizeWorkspaceSearch,
+} from "~/store/workspace-route"
+import {
+  activeFileSessionId,
+  activeFileSessionRoute,
   objStore,
   password,
-  recordHistory,
   setPassword,
   /*layout,*/ State,
   me,
 } from "~/store"
 import { UserMethods } from "~/types"
+import { bus } from "~/utils"
 
 const Folder = lazy(() => import("./folder/Folder"))
 const File = lazy(() => import("./file/File"))
@@ -35,29 +50,101 @@ export { objBoxRef }
 export const Obj = () => {
   const t = useT()
   const cardBg = useColorModeValue("white", "$neutral3")
-  const { pathname, searchParams, isShare, to } = useRouter()
+  const { pathname, search, isShare, to } = useRouter()
   const { handlePathChange, refresh } = usePath()
-  const pagination = getPagination()
-  const page = createMemo(() => {
-    return pagination.type === "pagination"
-      ? parseInt(searchParams["page"], 10) || 1
-      : undefined
+  useObjTitle()
+  let lastSessionId = ""
+  let lastPathname = ""
+  let lastSearch = ""
+  let lastRouteSearch = ""
+
+  const resetLastRecordedSession = () => {
+    lastSessionId = ""
+    lastPathname = ""
+    lastSearch = ""
+    lastRouteSearch = ""
+  }
+
+  const handleFileSessionClosed = (sessionId: string) => {
+    if (sessionId === lastSessionId) {
+      resetLastRecordedSession()
+    }
+  }
+
+  bus.on("file_session_closed", handleFileSessionClosed)
+  onCleanup(() => {
+    bus.off("file_session_closed", handleFileSessionClosed)
   })
-  let lastPathname: string
-  let lastPage: number | undefined
+
   createEffect(
-    on([pathname, page], async ([pathname, page]) => {
-      if (searchParams["pwd"]) {
-        setPassword(searchParams["pwd"])
-      }
-      if (lastPathname) {
-        recordHistory(lastPathname, lastPage)
-      }
-      lastPathname = pathname
-      lastPage = page
-      useObjTitle()
-      await handlePathChange(pathname, page)
-    }),
+    on(
+      [activeFileSessionId, activeFileSessionRoute, pathname, search],
+      async ([sessionId, sessionRoute, nextPathname, nextSearch]) => {
+        if (!sessionId) {
+          return
+        }
+
+        const nextRouteSearch = sanitizeWorkspaceSearch(nextSearch)
+
+        if (
+          !isActiveSessionRouteAligned(sessionRoute, nextPathname, nextSearch)
+        ) {
+          return
+        }
+
+        const nextPage = getCurrentWorkspacePage(nextPathname, nextSearch)
+        const didSwitchSession = !!lastSessionId && lastSessionId !== sessionId
+        const didChangeVisibleRoute =
+          lastPathname !== nextPathname || lastSearch !== nextSearch
+        const urlPassword = getUrlPassword(nextSearch)
+        const didSyncPasswordFromUrl =
+          !!urlPassword &&
+          (!lastSessionId || (!didSwitchSession && didChangeVisibleRoute)) &&
+          urlPassword !== untrack(password)
+
+        if (didSyncPasswordFromUrl) {
+          setPassword(urlPassword)
+        }
+
+        if (
+          !didSyncPasswordFromUrl &&
+          !didSwitchSession &&
+          lastSessionId === sessionId &&
+          lastPathname === nextPathname &&
+          lastRouteSearch === nextRouteSearch
+        ) {
+          lastSearch = nextSearch
+          return
+        }
+
+        if (lastSessionId && lastPathname) {
+          if (didSwitchSession) {
+            clearHistoryForSession(lastSessionId)
+          } else if (
+            lastPathname !== nextPathname ||
+            lastRouteSearch !== nextRouteSearch
+          ) {
+            const previousPage = getCurrentWorkspacePage(
+              lastPathname,
+              lastSearch,
+            )
+            recordHistory({
+              sessionId: lastSessionId,
+              pathname: lastPathname,
+              search: lastSearch,
+              page: previousPage,
+            })
+          }
+        }
+
+        lastSessionId = sessionId
+        lastPathname = nextPathname
+        lastSearch = nextSearch
+        lastRouteSearch = nextRouteSearch
+
+        await handlePathChange(nextPathname, nextPage)
+      },
+    ),
   )
 
   const isStorageError = createMemo(() => {
@@ -72,7 +159,7 @@ export const Obj = () => {
   })
 
   const storageErrorActions = () => (
-    <Button colorScheme="accent" onClick={() => to("/@manage/storages")}>
+    <Button onClick={() => to("/@manage/storages")}>
       {t("global.go_to_storages")}
     </Button>
   )

@@ -26,13 +26,18 @@ const Preview = () => {
   const videos = createMemo(() =>
     objStore.objs.filter((obj) => obj.type === ObjType.VIDEO),
   )
+  const buildVideoSearch = () => {
+    const params = new URLSearchParams(location.search.replace(/^\?/, ""))
+    params.set("auto_fullscreen", String(player.fullscreen))
+    const nextSearch = params.toString()
+    return nextSearch ? `?${nextSearch}` : ""
+  }
   const next_video = () => {
     const index = videos().findIndex((f) => f.name === objStore.obj.name)
     if (index < videos().length - 1) {
       navigate(
         pathJoin(pathDir(location.pathname), videos()[index + 1].name) +
-          "?auto_fullscreen=" +
-          player.fullscreen,
+          buildVideoSearch(),
       )
     }
   }
@@ -41,8 +46,7 @@ const Preview = () => {
     if (index > 0) {
       navigate(
         pathJoin(pathDir(location.pathname), videos()[index - 1].name) +
-          "?auto_fullscreen=" +
-          player.fullscreen,
+          buildVideoSearch(),
       )
     }
   }
@@ -298,8 +302,10 @@ const Preview = () => {
     switch (searchParams["auto_fullscreen"]) {
       case "true":
         auto_fullscreen = true
+        break
       case "false":
         auto_fullscreen = false
+        break
       default:
         auto_fullscreen = false
     }

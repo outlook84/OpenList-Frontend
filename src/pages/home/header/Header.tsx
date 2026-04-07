@@ -16,6 +16,7 @@ import { Container } from "../Container"
 import { bus } from "~/utils"
 import { Layout } from "./layout"
 import { isMac } from "~/utils/compatibility"
+import { Workspaces } from "./Workspaces"
 
 export const Header = () => {
   const logos = getSetting("logo").split("\n")
@@ -80,6 +81,9 @@ export const Header = () => {
                   </HStack>
                 </HStack>
               </Show>
+            </Show>
+            <Workspaces />
+            <Show when={objStore.state === State.Folder}>
               <Layout />
             </Show>
           </HStack>

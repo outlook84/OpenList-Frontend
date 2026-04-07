@@ -25,6 +25,7 @@ export interface PaginatorProps {
     | "warning"
     | "danger"
   // size?: "xs" | "sm" | "lg" | "xl" | "md";
+  current?: number
   defaultCurrent?: number
   onChange?: (current: number) => void
   hideOnSinglePage?: boolean
@@ -48,23 +49,31 @@ export const Paginator = (props: PaginatorProps) => {
     current: merged.defaultCurrent,
   })
   merged.setResetCallback?.(() => {
+    if (merged.current !== undefined) {
+      merged.onChange?.(merged.defaultCurrent)
+      return
+    }
     setStore("current", merged.defaultCurrent)
   })
+  const current = () => merged.current ?? store.current
   const pages = createMemo(() => {
     return Math.ceil(merged.total / store.pageSize)
   })
   const leftPages = createMemo(() => {
-    const current = store.current
-    const min = Math.max(2, current - Math.floor(merged.maxShowPage / 2))
-    return Array.from({ length: current - min }, (_, i) => min + i)
+    const currentPage = current()
+    const min = Math.max(2, currentPage - Math.floor(merged.maxShowPage / 2))
+    return Array.from({ length: currentPage - min }, (_, i) => min + i)
   })
   const rightPages = createMemo(() => {
-    const current = store.current
+    const currentPage = current()
     const max = Math.min(
       pages() - 1,
-      current + Math.floor(merged.maxShowPage / 2),
+      currentPage + Math.floor(merged.maxShowPage / 2),
     )
-    return Array.from({ length: max - current }, (_, i) => current + 1 + i)
+    return Array.from(
+      { length: max - currentPage },
+      (_, i) => currentPage + 1 + i,
+    )
   })
   const allPages = createMemo(() => {
     return Array.from({ length: pages() }, (_, i) => 1 + i)
@@ -74,13 +83,15 @@ export const Paginator = (props: PaginatorProps) => {
     "@md": "md",
   } as const
   const onPageChange = (page: number) => {
-    setStore("current", page)
+    if (merged.current === undefined) {
+      setStore("current", page)
+    }
     merged.onChange?.(page)
   }
   return (
     <Show when={!merged.hideOnSinglePage || pages() > 1}>
       <HStack spacing="$1">
-        <Show when={store.current !== 1}>
+        <Show when={current() !== 1}>
           <Button
             size={size}
             colorScheme={merged.colorScheme}
@@ -97,7 +108,7 @@ export const Paginator = (props: PaginatorProps) => {
             aria-label="Previous"
             colorScheme={merged.colorScheme}
             onClick={() => {
-              onPageChange(store.current - 1)
+              onPageChange(current() - 1)
             }}
             w="2rem !important"
           />
@@ -119,7 +130,7 @@ export const Paginator = (props: PaginatorProps) => {
         <Select
           size={size}
           variant="unstyled"
-          defaultValue={store.current}
+          value={current()}
           onChange={(page) => {
             onPageChange(+page)
           }}
@@ -132,7 +143,7 @@ export const Paginator = (props: PaginatorProps) => {
             variant="solid"
             colorScheme={merged.colorScheme}
           >
-            <Box px={store.current > 10 ? "$1_5" : "$2"}>{store.current}</Box>
+            <Box px={current() > 10 ? "$1_5" : "$2"}>{current()}</Box>
             <TbSelector />
           </SelectTrigger>
           <SelectContent minW="80px">
@@ -161,14 +172,14 @@ export const Paginator = (props: PaginatorProps) => {
             </Button>
           )}
         </For>
-        <Show when={store.current !== pages()}>
+        <Show when={current() !== pages()}>
           <IconButton
             size={size}
             icon={<FaSolidAngleRight />}
             aria-label="Next"
             colorScheme={merged.colorScheme}
             onClick={() => {
-              onPageChange(store.current + 1)
+              onPageChange(current() + 1)
             }}
             w="2rem !important"
           />

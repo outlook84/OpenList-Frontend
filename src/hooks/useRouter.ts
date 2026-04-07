@@ -7,8 +7,12 @@ import {
   _mergeSearchString,
 } from "@solidjs/router"
 import { createMemo, untrack } from "solid-js"
+import {
+  splitRouterNavigateOptions,
+  type RouterNavigateOptions,
+} from "./router-history-options"
+import { clearHistoryByHref } from "~/store/history"
 import { encodePath, joinBase, log, pathDir, pathJoin, trimBase } from "~/utils"
-import { clearHistory } from "~/store"
 
 const useRouter = () => {
   const navigate = useNavigate()
@@ -24,18 +28,22 @@ const useRouter = () => {
     to: (
       path: string,
       ignore_root?: boolean,
-      options?: Partial<NavigateOptions>,
+      options?: RouterNavigateOptions,
     ) => {
       if (!ignore_root && path.startsWith("/")) {
         path = joinBase(path)
       }
+      const { clearHistory, navigateOptions } =
+        splitRouterNavigateOptions(options)
+      if (clearHistory) {
+        clearHistoryByHref(path)
+      }
       log("to:", path)
-      clearHistory(decodeURIComponent(path))
-      navigate(path, options)
+      navigate(path, navigateOptions)
     },
     replace: (to: string) => {
       const path = joinBase(encodePath(pathJoin(pathDir(pathname()), to), true))
-      clearHistory(decodeURIComponent(path))
+      clearHistoryByHref(path)
       navigate(path)
     },
     pushHref: (to: string): string => {
@@ -49,7 +57,7 @@ const useRouter = () => {
     },
     pathname: pathname,
     isShare: isShare,
-    search: location.search,
+    search: createMemo(() => location.search),
     searchParams: location.query,
     setSearchParams: (
       params: SetParams,
@@ -58,6 +66,7 @@ const useRouter = () => {
       const searchString = untrack(() =>
         _mergeSearchString(location.search, params),
       )
+      clearHistoryByHref(pathname() + searchString)
       navigate(joinBase(pathname() + searchString), {
         scroll: false,
         ...options,
